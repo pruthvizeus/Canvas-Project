@@ -6,17 +6,48 @@ class Grid {
         this.cellHeight = cellHeight;
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = 0.2;
         this.cellData = {};
+        this.verticalLines = [];
+        this.horizontalLines = [];
         this.initialcell = [];
         this.finallcell = [];
         this.selectedCells = [];
         this.ismousedown = false;
         this.ismouseup = false;
         this.ismousemove = false;
+        this.initLines();
     }
 
+    initLines() {
+        // Initialize vertical lines
+        for (let x = this.cellWidth; x <= this.canvas.width; x += this.cellWidth) {
+            this.verticalLines.push(x);
+        }
 
+        // Initialize horizontal lines
+        for (let y = this.cellHeight; y <= this.canvas.height; y += this.cellHeight) {
+            this.horizontalLines.push(y);
+        }
+    }
+    copyCellData() {
+        if (this.highlightedCell) {
+            const { cellX, cellY } = this.highlightedCell;
+            const key = `${cellX / this.cellWidth},${cellY / this.cellHeight}`;
+            const cellData = this.cellData[key] || '';
+            
+            // Highlight cell with a border
+            this.ctx.strokeStyle = 'red';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(cellX + 1, cellY + 1, this.cellWidth - 2, this.cellHeight - 2);
+
+            navigator.clipboard.writeText(cellData).then(() => {
+                console.log('Copied to clipboard:', cellData);
+            }).catch(err => {
+                console.error('Failed to copy text:', err);
+            });
+        }
+    }
 
     loadJsonData(jsonData) {
         this.cellData = {};
@@ -33,57 +64,71 @@ class Grid {
     }
     
     drawGrid() {
-        console.log(this.cellData);
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-
+    
         // Draw vertical lines and column headers
-        for (let x = this.cellWidth; x <= this.canvas.width; x += this.cellWidth) {
+        for (let i = 0; i < this.verticalLines.length; i++) {
+            const x = this.verticalLines[i];
             this.ctx.beginPath();
             this.ctx.moveTo(x + 0.5, 0);
             this.ctx.lineTo(x + 0.5, this.canvas.height);
             this.ctx.stroke();
-
-            if (x > 0) {
-                const columnHeader = String.fromCharCode(64 + x / this.cellWidth);
+    
+            if (x > 0 && i > 0) {
+                const columnHeader = String.fromCharCode(64 + i);
                 this.ctx.fillStyle = "black";
                 this.ctx.font = "15px Arial";
                 this.ctx.textAlign = "center";
                 this.ctx.textBaseline = "middle";
-                this.ctx.fillText(columnHeader, x - this.cellWidth / 2 + this.cellWidth, this.cellHeight / 2);
+                const columnCenterX = (this.verticalLines[i - 1] + x) / 2;
+                this.ctx.fillText(columnHeader, columnCenterX, this.cellHeight / 2);
             }
         }
-
+    
         // Draw horizontal lines and row headers
-        for (let y = this.cellHeight; y <= this.canvas.height; y += this.cellHeight) {
+        for (let i = 0; i < this.horizontalLines.length; i++) {
+            const y = this.horizontalLines[i];
             this.ctx.beginPath();
             this.ctx.moveTo(0, y + 0.5);
             this.ctx.lineTo(this.canvas.width, y + 0.5);
             this.ctx.stroke();
-
-            if (y > 0) {
-                const rowHeader = y / this.cellHeight;
+    
+            if (y > 0 && i > 0) {
+                const rowHeader = i;
                 this.ctx.fillStyle = "black";
                 this.ctx.font = "15px Arial";
                 this.ctx.textAlign = "center";
                 this.ctx.textBaseline = "middle";
-                this.ctx.fillText(rowHeader, this.cellWidth / 2, y - this.cellHeight / 2 + this.cellHeight);
+                const rowCenterY = (this.horizontalLines[i - 1] + y) / 2;
+                this.ctx.fillText(rowHeader, this.cellWidth / 2, rowCenterY);
             }
         }
-
+    
         // Draw cell content
         for (let key in this.cellData) {
             const [cellX, cellY] = key.split(',').map(Number);
             if (cellX > 0 && cellY > 0) { // Skip headers
+                const textX = (this.verticalLines[cellX - 1] + this.verticalLines[cellX]) / 2;
+                const textY = (this.horizontalLines[cellY - 1] + this.horizontalLines[cellY]) / 2;
                 this.ctx.fillStyle = "black";
                 this.ctx.font = "15px Arial";
                 this.ctx.textAlign = "center";
                 this.ctx.textBaseline = "middle";
-                const textX = cellX * this.cellWidth + this.cellWidth / 2;
-                const textY = cellY * this.cellHeight + this.cellHeight / 2;
                 this.ctx.fillText(this.cellData[key], textX, textY);
             }
         }
     }
+    
+    
+    resizeLine(lineIndex, direction, offset) {
+        if (direction === 'vertical') {
+            this.verticalLines[lineIndex] += offset;
+        } else if (direction === 'horizontal') {
+            this.horizontalLines[lineIndex] += offset;
+        }
+        this.drawGrid();
+    }
+
 
     clearCanavsClick() {
         this.cellData = {}
@@ -91,17 +136,33 @@ class Grid {
 
     }
     highlighthorizontal(x, y) {
-        this.drawGrid()
-
-        this.ctx.fillStyle = "rgba(52,152,235,0.6)"
-
-        this.ctx.fillRect(x, 0, this.cellWidth, this.canvas.height);
-
-
+        this.drawGrid();
+    
+        let startX = 0;
+        let targetColumn = 0;
+        let accumulatedWidth = 0;
+    
+        // Determine which column the x coordinate belongs to
+        for (let i = 0; i < this.columnWidths.length; i++) {
+            accumulatedWidth += this.columnWidths[i];
+            if (x < accumulatedWidth) {
+                targetColumn = i;
+                break;
+            }
+            startX = accumulatedWidth;
+        }
+    
+        const columnWidth = this.columnWidths[targetColumn];
+    
+        // Highlight the appropriate column
+        this.ctx.fillStyle = "rgba(52,152,235,0.3)";
+        this.ctx.fillRect(startX, 0, columnWidth, this.canvas.height);
     }
+    
     highlightvertical(x, y) {
         this.drawGrid()
-        this.ctx.fillStyle = "rgba(52,152,235,0.6)"
+        this.ctx.fillStyle = "rgba(52,152,235,0.3)"
+
         this.ctx.fillRect(0, y, this.canvas.width, this.cellHeight);
     }
     highlightCell(x, y) {
@@ -117,20 +178,16 @@ class Grid {
         this.ctx.fillStyle = "rgba(255, 255, 255, 0)";
         this.ctx.fillRect(cellX, cellY, this.cellWidth, this.cellHeight);
 
-        this.ctx.strokeStyle = "rgba(63, 80, 235)";
-        this.ctx.lineWidth = 2;
+        this.ctx.strokeStyle = "rgba(44, 116, 232)";
+        this.ctx.lineWidth = 3;
         this.ctx.strokeRect(cellX, cellY, this.cellWidth, this.cellHeight);
 
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
-        this.ctx.lineWidth = 1;
+        this.ctx.lineWidth = 0.2;
     }
 
-    drawcell(x, y) {
-        const cellX = Math.floor(x / this.cellWidth) * this.cellWidth;
-        const cellY = Math.floor(y / this.cellHeight) * this.cellHeight;
-        this.ctx.fillRect(cellX, cellY, this.cellWidth, this.cellHeight);
-    }
+   
 
     highlightmiltiple(initial, final) {
         this.drawGrid();
@@ -139,26 +196,14 @@ class Grid {
         const y1 = Math.min(initial[1], final[1]);
         const x2 = Math.max(initial[0], final[0]);
         const y2 = Math.max(initial[1], final[1]);
-        // console.log(x1,y1,x2,y2);
         this.ctx.fillStyle = "rgba(52,152,235,0.3)"
 
         this.ctx.fillRect(x1, y1, x2-x1+this.cellWidth, y2-y1+this.cellHeight);
-        // for (let i = x1; i <= x2; i += this.cellWidth) {
-        //     for (let j = y1; j <= y2; j += this.cellHeight) {
-        //         this.drawcell(i, j);
-        //     }
-        // }
-        // this.ctx.restore();
-    }
-
-    repaint() {
-        // requestAnimationFrame = ()
-        // {
-        //     Re
-        // }
+   
     }
 
     editCell(x, y) {
+       
         const cellX = Math.floor(x / this.cellWidth) * this.cellWidth;
         const cellY = Math.floor(y / this.cellHeight) * this.cellHeight;
         if (cellX == 0 || cellY == 0) { return; }
