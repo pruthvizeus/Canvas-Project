@@ -1,7 +1,7 @@
 import Grid from './grid.js';
 
-const cellWidth = 180;
-const cellHeight = 25;
+const cellWidth = 110;
+const cellHeight = 18;
 const canvas = document.getElementById('gridCanvas');
 canvas.width = window.innerWidth*2;
 canvas.height = window.innerHeight;
@@ -10,7 +10,11 @@ const grid = new Grid('gridCanvas', cellWidth, cellHeight);
 grid.drawGrid();
 
 var myLink = document.getElementById('mylink');
+var sum = document.getAnimations('sum')
+sum.onclick=function()
+{
 
+}
 myLink.onclick = function () {
     grid.clearCanavsClick();
 }
@@ -47,17 +51,14 @@ document.getElementById('jsonUpload').addEventListener('change', async function(
         }
     }
 });
-
-let isResizing = false;
-let resizingColumnIndex = -1;
-let initialMouseX = 0;
+;
 
 canvas.addEventListener('mousedown', function (event) {
     grid.drawGrid();
     const rect = event.target.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-
+   
     let isResizing = false;
 
     // Check if near a vertical line and within the header (row 0) for resizing columns
@@ -90,6 +91,8 @@ canvas.addEventListener('mousedown', function (event) {
         // If not resizing, proceed with highlighting cells
         const cellX = Math.floor(x / grid.cellWidth) * grid.cellWidth;
         const cellY = Math.floor(y / grid.cellHeight) * grid.cellHeight;
+        const arr=[]
+        arr.push(cellX,cellY)
         grid.ismousedown = true;
 
         if (cellX == 0) {
@@ -98,10 +101,11 @@ canvas.addEventListener('mousedown', function (event) {
             grid.highlighthorizontal(cellX, cellY);
         } else {
             grid.highlightCell(x, y);
-            grid.initialcell.push(cellX, cellY);
+            grid.initialcell=arr;
         }
     }
 });
+
 
 canvas.addEventListener('mousemove', function (event) {
     const rect = event.target.getBoundingClientRect();
@@ -136,7 +140,9 @@ canvas.addEventListener('mousemove', function (event) {
 
     // Reset cursor if not near any line
     if (!isNearVerticalLine && !isNearHorizontalLine) {
-        canvas.style.cursor = 'default';
+
+        canvas.style.cursor = 'cell';
+        
     }
 
     // Resize logic
@@ -191,8 +197,8 @@ canvas.addEventListener('mousemove', function (event) {
 
 
 canvas.addEventListener('mouseup', function (event) {
-    grid.initialcell = [];
-    grid.finallcell = [];
+    // grid.initialcell = [];
+    // grid.finallcell = [];
     grid.ismousedown = false;
     grid.isResizingColumn = false;
     grid.isResizingRow = false;
@@ -240,9 +246,36 @@ document.getElementById('deleteOption').addEventListener('click', function () {
     alert('Delete Cell option clicked');
     // Add your delete logic here
 });
-
 document.addEventListener('keydown', function (event) {
+    const rect = event.target.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+   
+   
     if (event.ctrlKey && event.key === 'c') {
-        grid.copyCellData();
+        console.log('Ctrl+C pressed');
+
+        const x1 = Math.min(grid.initialcell[0], grid.finallcell[0]);
+        const y1 = Math.min(grid.initialcell[1], grid.finallcell[1]);
+        const x2 = Math.max(grid.initialcell[0], grid.finallcell[0]);
+        const y2 = Math.max(grid.initialcell[1], grid.finallcell[1]);
+
+        console.log('Coordinates:', { x1, y1, x2, y2 });
+
+        grid.ctx.save();
+        grid.ctx.strokeStyle = "green";  // Border color
+        grid.ctx.lineWidth = 3;        // Border width
+        grid.ctx.setLineDash([5, 5]);  // Dotted line [5 pixels on, 5 pixels off]
+
+        grid.ctx.strokeRect(x1, y1, x2 - x1 , y2 - y1   );
+        console.log('Dotted border applied');
+
+        grid.ctx.restore();
+
+        // Clear the selected cell coordinates after applying the border
+        grid.initialcell = [];
+        grid.finallcell = [];
     }
 });
+
+
