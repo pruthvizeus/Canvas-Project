@@ -1,4 +1,238 @@
-class Grid {
+window.onload = function () {
+    const cellWidth = 110;
+    const cellHeight = 18;
+    const canvas = document.getElementById('gridCanvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const grid = new Grid('gridCanvas', cellWidth, cellHeight);
+    grid.drawGrid();
+    document.getElementById('jsonUpload').addEventListener('change', async function () {
+        const file = this.files[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const uploadResponse = await fetch('http://localhost:5208/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (uploadResponse.ok) {
+                    const uploadResult = await uploadResponse.json();
+                    console.log('File uploaded successfully:', uploadResult);
+
+                    const dataResponse = await fetch('http://localhost:5208/upload/');
+                    if (dataResponse.ok) {
+                        const jsonData = await dataResponse.json();
+                        grid.loadJsonData(jsonData);
+                        console.log('Data fetched successfully:');
+                    } else {
+                        console.error('Failed to fetch data:', dataResponse.statusText);
+                    }
+                } else {
+                    console.error('File upload failed:', uploadResponse.statusText);
+                }
+            } catch (error) {
+                console.error('Error uploading file:', error);
+            }
+        }
+    });
+    canvas.addEventListener('mousedown', function (event) {
+        grid.drawGrid();
+        const rect = event.target.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+
+        let isResizing = false;
+        // Check if near a vertical line and within the header (row 0) for resizing columns
+        if (y < grid.cellHeight) {
+            for (let i = 0; i < grid.verticalLines.length; i++) {
+                if (Math.abs(x - grid.verticalLines[i]) < 5) {
+                    console.log(x, y, grid.verticalLines[i]);
+                    grid.isResizingColumn = true;
+                    grid.resizeStartX = x;
+                    grid.resizingColumnIndex = i;
+                    isResizing = true;
+                    return; // Prioritize resizing
+                }
+            }
+        }
+
+        // Check if near a horizontal line and within the index column (column 0) for resizing rows
+        if (x < grid.cellWidth) {
+            for (let i = 0; i < grid.horizontalLines.length; i++) {
+                if (Math.abs(y - grid.horizontalLines[i]) < 5) {
+                    grid.isResizingRow = true;
+                    grid.resizeStartY = y;
+                    grid.resizingRowIndex = i;
+                    isResizing = true;
+                    return; // Prioritize resizing
+                }
+            }
+        }
+
+        if (!isResizing) {
+            // If not resizing, proceed with highlighting cells
+            const cellX = Math.floor(x / grid.cellWidth) * grid.cellWidth;
+            const cellY = Math.floor(y / grid.cellHeight) * grid.cellHeight;
+            const arr = []
+            arr.push(cellX, cellY)
+            grid.ismousedown = true;
+
+            if (cellX == 0) {
+                grid.highlightvertical(cellX, cellY);
+            } else if (cellY == 0) {
+                grid.highlighthorizontal(cellX, cellY);
+            } else {
+                grid.highlightCell(x, y);
+                grid.initialcell = arr;
+            }
+        }
+    });
+
+    
+  
+    
+    
+    canvas.addEventListener('mousemove', function (event) {
+        const rect = event.target.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        grid.ismousemove = true;
+
+        let isNearVerticalLine = false;
+        let isNearHorizontalLine = false;
+
+        // Check if near a vertical line and within the header (row 0)
+        if (y < grid.cellHeight) {
+            for (let i = 0; i < grid.verticalLines.length; i++) {
+                if (Math.abs(x - grid.verticalLines[i]) < 5) {
+                    isNearVerticalLine = true;
+                    canvas.style.cursor = 'col-resize';
+                    break;
+                }
+            }
+        }
+
+        // Check if near a horizontal line and within the index column (column 0)
+        if (x < grid.cellWidth) {
+            for (let i = 0; i < grid.horizontalLines.length; i++) {
+                if (Math.abs(y - grid.horizontalLines[i]) < 5) {
+                    isNearHorizontalLine = true;
+                    canvas.style.cursor = 'row-resize';
+                    break;
+                }
+            }
+        }
+
+        // Reset cursor if not near any line
+        if (!isNearVerticalLine && !isNearHorizontalLine) {
+
+            canvas.style.cursor = 'cell';
+
+        }
+
+        // Resize logic
+        if (grid.isResizingColumn) {
+            const deltaX = x - grid.resizeStartX;
+            console.log(x, grid.resizeStartX, grid.resizingColumnIndex);
+            const currentIndex = grid.resizingColumnIndex;
+
+            const newLinePos = grid.verticalLines[currentIndex] + deltaX;
+
+            if (newLinePos > grid.verticalLines[currentIndex - 1] + 20) {
+                // Update current line position
+                grid.verticalLines[currentIndex] = newLinePos;
+
+                // Adjust subsequent lines
+                for (let i = currentIndex + 1; i < grid.verticalLines.length; i++) {
+                    grid.verticalLines[i] += deltaX;
+                }
+
+                grid.resizeStartX = x;
+                grid.drawGrid();
+            }
+        } else if (grid.isResizingRow) {
+            const deltaY = y - grid.resizeStartY;
+            const currentIndex = grid.resizingRowIndex;
+
+            const newLinePos = grid.horizontalLines[currentIndex] + deltaY;
+
+            if (newLinePos > grid.horizontalLines[currentIndex - 1] + 20) {
+                // Update current line position
+                grid.horizontalLines[currentIndex] = newLinePos;
+
+                // Adjust subsequent lines
+                for (let i = currentIndex + 1; i < grid.horizontalLines.length; i++) {
+                    grid.horizontalLines[i] += deltaY;
+                }
+
+                grid.resizeStartY = y;
+                grid.drawGrid();
+            }
+        } else if (grid.ismousedown) {
+            const cellX = Math.floor(x / grid.cellWidth) * grid.cellWidth;
+            const cellY = Math.floor(y / grid.cellHeight) * grid.cellHeight;
+
+            if (cellX != 0 && cellY != 0) {
+                const arr = [];
+                arr.push(cellX, cellY);
+                grid.finallcell = arr;
+                grid.highlightmiltiple(grid.initialcell, grid.finallcell);
+            }
+        }
+    });
+
+
+    canvas.addEventListener('mouseup', function (event) {
+        grid.calculateSum(grid.initialcell, grid.finallcell)
+
+
+        grid.initialcell = [];
+        grid.finallcell = [];
+        grid.ismousedown = false;
+        grid.isResizingColumn = false;
+        grid.isResizingRow = false;
+    });
+
+    canvas.addEventListener('dblclick', function (event) {
+        const rect = event.target.getBoundingClientRect();
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        grid.editCell(x, y);
+    });
+
+    canvas.addEventListener('contextmenu', function (event) {
+        event.preventDefault();
+        const contextMenu = document.getElementById('contextMenu');
+        const rect = canvas.getBoundingClientRect();
+        contextMenu.style.top = `${event.clientY - rect.top}px`;
+        contextMenu.style.left = `${event.clientX - rect.left}px`;
+        contextMenu.style.display = 'block';
+
+        const x = event.clientX - rect.left;
+        const y = event.clientY - rect.top;
+        grid.contextMenuX = x;
+        grid.contextMenuY = y;
+        grid.highlightCell(x, y);
+    });
+
+    document.addEventListener('click', function (event) {
+        const contextMenu = document.getElementById('contextMenu');
+        contextMenu.style.display = 'none';
+    });
+
+    document.getElementById('editOption').addEventListener('click', function () {
+        const contextMenu = document.getElementById('contextMenu');
+        contextMenu.style.display = 'none';
+        grid.editCell(grid.contextMenuX, grid.contextMenuY);
+    });
+
+
+}
+export class Grid {
     constructor(canvasId, cellWidth, cellHeight) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
@@ -7,8 +241,7 @@ class Grid {
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
-        this.cellData = {
-        };
+        this.cellData = {};
         this.verticalLines = [];
         this.horizontalLines = [];
         this.initialcell = [];
@@ -19,8 +252,10 @@ class Grid {
         this.ismousemove = false;
         this.initLines();
     }
-
+ 
+    
     initLines() {
+       
         // Initialize vertical lines
         for (let x = this.cellWidth; x <= this.canvas.width; x += this.cellWidth) {
             this.verticalLines.push(x);
@@ -45,9 +280,10 @@ class Grid {
         });
         this.drawGrid();
     }
-   
+
 
     drawGrid() {
+        this.ctx.lineWidth=0.2
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Draw vertical lines and column headers
@@ -217,74 +453,149 @@ class Grid {
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
     }
-
-
-    highlightmiltiple(initial, final) {
-        this.drawGrid();
-    
+    calculateSum(initial, final) {
         const x1 = Math.min(initial[0], final[0]);
         const y1 = Math.min(initial[1], final[1]);
         const x2 = Math.max(initial[0], final[0]);
         const y2 = Math.max(initial[1], final[1]);
-    
+        let cellX1 = 0;
+        let cellY1 = 0;
+        let cellX2 = 0
+        let cellY2 = 0
+        let columnIndex = 0;
+        let rowIndex = 0;
+
+        // Find the correct column index
+        for (let i = 0; i < this.verticalLines.length; i++) {
+            if (x1 < this.verticalLines[i]) {
+                cellX1 = i === 0 ? 0 : this.verticalLines[i - 1];
+                columnIndex = i;
+                break;
+            }
+        }
+        for (let i = 0; i < this.verticalLines.length; i++) {
+            if (x2 < this.verticalLines[i]) {
+                cellX2 = i === 0 ? 0 : this.verticalLines[i - 1];
+                columnIndex = i;
+                break;
+            }
+        }
+
+        // Find the correct row index
+        for (let j = 0; j < this.horizontalLines.length; j++) {
+            if (y1 < this.horizontalLines[j]) {
+                cellY1 = j === 0 ? 0 : this.horizontalLines[j - 1];
+                rowIndex = j;
+                break;
+            }
+        }
+        for (let j = 0; j < this.horizontalLines.length; j++) {
+            if (y2 < this.horizontalLines[j]) {
+                cellY2 = j === 0 ? 0 : this.horizontalLines[j - 1];
+                rowIndex = j;
+                break;
+            }
+        }
+        const cell1 = [], cell2 = []
+        cell1.push(cellX1 / this.cellWidth, cellY1 / this.cellHeight)
+        cell2.push(cellX2 / this.cellWidth, cellY2 / this.cellHeight)
+        let ans = 0
+        let times = 0
+        // let min= 1200120;
+        // let max = -21321321312
+        for (let i = cell1[0]; i <= cell2[0]; i++) {
+            for (let j = cell1[1]; j <= cell2[1]; j++) {
+                if (!isNaN(parseFloat(this.cellData[`${i},${j}`]))) {
+
+                    ans += parseFloat(this.cellData[`${i},${j}`])
+                    times++;
+                    // max=Math.max(max,parseFloat(this.cellData[`${i},${j}`]))
+                    // min=Math.min(min,parseFloat(this.cellData[`${i},${j}`]))
+                }
+            }
+        }
+
+
+        // If the click is on the headers (row 0 or column 0), do not edit
+        if (rowIndex === 0 || columnIndex === 0) {
+            return;
+        }
+        const result = []
+        result.push(ans, parseFloat(Math.round(ans / times)))
+        document.getElementById('sumResult').innerHTML = result[0]
+        document.getElementById('avgResult').innerHTML = result[1]
+        // document.getElementById('maxResult').innerHTML=result[2]
+        // document.getElementById('minResutl').innerHTML=result[3]
+
+
+
+
+    }
+
+    highlightmiltiple(initial, final) {
+        this.drawGrid();
+
+        const x1 = Math.min(initial[0], final[0]);
+        const y1 = Math.min(initial[1], final[1]);
+        const x2 = Math.max(initial[0], final[0]);
+        const y2 = Math.max(initial[1], final[1]);
+
         // Find the left and right boundaries
         const leftBoundaryIndex = this.verticalLines.findIndex(line => line > x1);
-        const rightBoundaryIndex = this.verticalLines.findIndex(line => line >= x2);
+        const rightBoundaryIndex = this.verticalLines.findIndex(line => line > x2);
         const xStart = leftBoundaryIndex > 0 ? this.verticalLines[leftBoundaryIndex - 1] : 0;
         const xEnd = this.verticalLines[rightBoundaryIndex] || this.canvas.width;
-    
+
         // Find the top and bottom boundaries
         const topBoundaryIndex = this.horizontalLines.findIndex(line => line > y1);
-        const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line >= y2);
+        const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line > y2);
         const yStart = topBoundaryIndex > 0 ? this.horizontalLines[topBoundaryIndex - 1] : 0;
         const yEnd = this.horizontalLines[bottomBoundaryIndex] || this.canvas.height;
-    
+
         this.ctx.fillStyle = "rgba(19, 126, 67, 0.3)"; // green color rgb
-    
+
         // Fill the top header highlight
         this.ctx.fillRect(xStart, 0, xEnd - xStart, this.horizontalLines[0]);
-    
+
         // Fill the left header highlight
         this.ctx.fillRect(0, yStart, this.verticalLines[0], yEnd - yStart);
-    
+
         this.ctx.save();
-    
+
         // Fill the main highlight area
         this.ctx.fillRect(xStart, yStart, xEnd - xStart, yEnd - yStart);
-    
+
         // Set stroke style for the border
         this.ctx.strokeStyle = "rgba(19, 126, 67, 1)";
         this.ctx.lineWidth = 2; // Adjust for desired thickness
-    
+
         // Draw bottom border for the top header highlight
         this.ctx.beginPath();
         this.ctx.moveTo(xStart, this.horizontalLines[0]);
         this.ctx.lineTo(xEnd, this.horizontalLines[0]);
         this.ctx.stroke();
-    
+
         // Draw right border for the left header highlight
         this.ctx.beginPath();
         this.ctx.moveTo(this.verticalLines[0], yStart);
         this.ctx.lineTo(this.verticalLines[0], yEnd);
         this.ctx.stroke();
-    
+
         // Draw the border around the main highlighted area
         this.ctx.strokeRect(xStart, yStart, xEnd - xStart, yEnd - yStart);
-    
+
         this.ctx.restore();
     }
-    
+
 
 
     editCell(x, y) {
         // Determine the column and row based on the mouse coordinates
         let cellX = 0;
         let cellY = 0;
-        let accumulatedWidth = 0;
-        let accumulatedHeight = 0;
         let columnIndex = 0;
         let rowIndex = 0;
-    
+
         // Find the correct column index
         for (let i = 0; i < this.verticalLines.length; i++) {
             if (x < this.verticalLines[i]) {
@@ -293,7 +604,7 @@ class Grid {
                 break;
             }
         }
-    
+
         // Find the correct row index
         for (let j = 0; j < this.horizontalLines.length; j++) {
             if (y < this.horizontalLines[j]) {
@@ -302,12 +613,12 @@ class Grid {
                 break;
             }
         }
-    
+
         // If the click is on the headers (row 0 or column 0), do not edit
         if (rowIndex === 0 || columnIndex === 0) {
             return;
         }
-    
+
         // Create input element for editing
         const input = document.createElement('input');
         input.type = 'text';
@@ -319,17 +630,17 @@ class Grid {
         input.style.outline = 'none';
         input.style.border = "0px";
         input.value = this.cellData[`${columnIndex},${rowIndex}`] || '';
-    
+
         document.body.appendChild(input);
         input.focus();
-    
+
         // Save the input data and remove the input element
         const saveInput = () => {
             this.cellData[`${columnIndex},${rowIndex}`] = input.value;
             document.body.removeChild(input);
             this.drawGrid();
         };
-    
+
         input.addEventListener('blur', saveInput);
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
@@ -337,7 +648,5 @@ class Grid {
             }
         });
     }
-    
-}
 
-export default Grid;
+}
