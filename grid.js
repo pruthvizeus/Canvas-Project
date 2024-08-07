@@ -1,10 +1,11 @@
 window.onload = function () {
-    const cellWidth = 110;
+    const canvas = document.createElement('canvas');
+    canvas.id = 'gridCanvas';
+    document.body.appendChild(canvas);
+    const cellWidth = 140;
     const cellHeight = 18;
-    const canvas = document.getElementById('gridCanvas');
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-
     const grid = new Grid('gridCanvas', cellWidth, cellHeight);
     grid.drawGrid();
     document.getElementById('jsonUpload').addEventListener('change', async function () {
@@ -39,6 +40,10 @@ window.onload = function () {
             }
         }
     });
+
+    document.getElementById('mylink').onclick = function () {
+        grid.clearCanavsClick()
+    }
     canvas.addEventListener('mousedown', function (event) {
         grid.drawGrid();
         const rect = event.target.getBoundingClientRect();
@@ -50,7 +55,6 @@ window.onload = function () {
         if (y < grid.cellHeight) {
             for (let i = 0; i < grid.verticalLines.length; i++) {
                 if (Math.abs(x - grid.verticalLines[i]) < 5) {
-                    console.log(x, y, grid.verticalLines[i]);
                     grid.isResizingColumn = true;
                     grid.resizeStartX = x;
                     grid.resizingColumnIndex = i;
@@ -92,10 +96,7 @@ window.onload = function () {
         }
     });
 
-    
-  
-    
-    
+
     canvas.addEventListener('mousemove', function (event) {
         const rect = event.target.getBoundingClientRect();
         const x = event.clientX - rect.left;
@@ -137,7 +138,6 @@ window.onload = function () {
         // Resize logic
         if (grid.isResizingColumn) {
             const deltaX = x - grid.resizeStartX;
-            console.log(x, grid.resizeStartX, grid.resizingColumnIndex);
             const currentIndex = grid.resizingColumnIndex;
 
             const newLinePos = grid.verticalLines[currentIndex] + deltaX;
@@ -188,8 +188,13 @@ window.onload = function () {
 
     canvas.addEventListener('mouseup', function (event) {
         grid.calculateSum(grid.initialcell, grid.finallcell)
-
-
+       if(grid.finallcell.length)
+       {
+        grid.copyinitialcell = grid.initialcell
+        grid.copyfinalcell = grid.finallcell
+       }
+        console.warn(grid.copyinitialcell,grid.copyfinalcell);
+        
         grid.initialcell = [];
         grid.finallcell = [];
         grid.ismousedown = false;
@@ -220,14 +225,39 @@ window.onload = function () {
     });
 
     document.addEventListener('click', function (event) {
+  
+       
         const contextMenu = document.getElementById('contextMenu');
         contextMenu.style.display = 'none';
+       
     });
 
     document.getElementById('editOption').addEventListener('click', function () {
         const contextMenu = document.getElementById('contextMenu');
         contextMenu.style.display = 'none';
         grid.editCell(grid.contextMenuX, grid.contextMenuY);
+    });
+    document.addEventListener('keydown', function (event) {
+    
+        
+        if (event.ctrlKey && event.key === 'c') {
+            event.preventDefault()
+            grid.isCopying = true;
+            grid.drawSelectionRectangle(); // Draw with dashed line
+            grid.pasting=true
+
+        }
+        if (event.ctrlKey && event.key === 'v') {
+          
+                 if(grid.pasting)
+                 {
+                    grid.drawCopiedRectangle(grid.copyinitialcell, grid.copyfinalcell, grid.recentX, grid.recentY); // Draw with dashed line
+                 }
+                    
+               
+          
+
+        }
     });
 
 
@@ -241,22 +271,36 @@ export class Grid {
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
+        this.pasting=false
         this.cellData = {};
         this.verticalLines = [];
         this.horizontalLines = [];
         this.initialcell = [];
         this.finallcell = [];
+        this.copyinitialcell = []
+        this.copyfinalcell = []
+        this.copiedCells = []
         this.selectedCells = [];
         this.ismousedown = false;
         this.ismouseup = false;
         this.ismousemove = false;
+        this.recentX=0
+        this.recentY=0
         this.initLines();
     }
- 
-    
+    addRows(count) {
+        const lastRowIndex = this.horizontalLines.length - 1;
+        for (let i = 0; i < count; i++) {
+            const newY = this.horizontalLines[lastRowIndex] + this.cellHeight;
+            this.horizontalLines.push(newY);
+        }
+        this.drawGrid();
+    }
+
     initLines() {
-       
+
         // Initialize vertical lines
+
         for (let x = this.cellWidth; x <= this.canvas.width; x += this.cellWidth) {
             this.verticalLines.push(x);
         }
@@ -281,12 +325,52 @@ export class Grid {
         this.drawGrid();
     }
 
+    drawSelectionRectangle() {
+        const initial = this.copyinitialcell;
+        const final = this.copyfinalcell;
+
+        if (!initial.length || !final.length) {
+            return;
+        }
+
+        const x1 = Math.min(initial[0], final[0]);
+        const y1 = Math.min(initial[1], final[1]);
+        const x2 = Math.max(initial[0], final[0]);
+        const y2 = Math.max(initial[1], final[1]);
+        const leftBoundaryIndex = this.verticalLines.findIndex(line => line > x1);
+        const rightBoundaryIndex = this.verticalLines.findIndex(line => line > x2);
+        const xStart = leftBoundaryIndex > 0 ? this.verticalLines[leftBoundaryIndex - 1] : 0;
+        const xEnd = this.verticalLines[rightBoundaryIndex] || this.canvas.width;
+
+        // Find the top and bottom boundaries
+        const topBoundaryIndex = this.horizontalLines.findIndex(line => line > y1);
+        const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line > y2);
+        const yStart = topBoundaryIndex > 0 ? this.horizontalLines[topBoundaryIndex - 1] : 0;
+        const yEnd = this.horizontalLines[bottomBoundaryIndex] || this.canvas.height;
+        this.ctx.strokeStyle = 'green';
+        this.ctx.lineWidth = 3;
+
+        // Set dashed line style if copying
+        if (this.isCopying) {
+            this.ctx.setLineDash([8, 5]); // Increased Dash pattern: 8px dash, 5px gap
+        } else {
+            ctx.setLineDash([]); // No dash, solid line
+        }
+
+        // Draw the rectangle
+        this.ctx.strokeRect(xStart, yStart, xEnd - xStart, yEnd - yStart);
+
+        // Reset the line dash to avoid affecting other drawings
+        this.ctx.setLineDash([]);
+
+    }
 
     drawGrid() {
-        this.ctx.lineWidth=0.2
+        this.ctx.lineWidth = 0.2
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
         // Draw vertical lines and column headers
+
         for (let i = 0; i < this.verticalLines.length; i++) {
             const x = this.verticalLines[i];
             this.ctx.beginPath();
@@ -334,7 +418,7 @@ export class Grid {
                 this.ctx.font = "15px Arial";
                 this.ctx.textAlign = "center";
                 this.ctx.textBaseline = "middle";
-                this.ctx.fillText(this.cellData[key], textX, textY);
+                this.ctx.fillText(this.cellData[key], textX, textY, 140);
             }
         }
     }
@@ -410,6 +494,8 @@ export class Grid {
     }
 
     highlightCell(x, y) {
+        this.recentX=x
+        this.recentY=y
         let cellX = 0;
         let cellY = 0;
         let cellWidth = 0;
@@ -452,7 +538,48 @@ export class Grid {
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
+      
     }
+    drawCopiedRectangle(initial, final, x, y) {
+       
+        // this.drawGrid()
+        const cellX = Math.floor(x / this.cellWidth) * this.cellWidth;
+        const cellY = Math.floor(y / this.cellHeight) * this.cellHeight;
+       
+
+            const x1 = Math.min(initial[0], final[0]);
+            const y1 = Math.min(initial[1], final[1]);
+            const x2 = Math.max(initial[0], final[0]);
+            const y2 = Math.max(initial[1], final[1]);
+
+            console.warn(cellX,cellY);
+            this.copiedCells = []
+            // Find the left and right boundaries
+            const leftBoundaryIndex = this.verticalLines.findIndex(line => line > x1);
+            const rightBoundaryIndex = this.verticalLines.findIndex(line => line > x2);
+            const xStart = leftBoundaryIndex > 0 ? this.verticalLines[leftBoundaryIndex - 1] : 0;
+            const xEnd = this.verticalLines[rightBoundaryIndex] || this.canvas.width;
+
+            // Find the top and bottom boundaries
+            const topBoundaryIndex = this.horizontalLines.findIndex(line => line > y1);
+            const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line > y2);
+            const yStart = topBoundaryIndex > 0 ? this.horizontalLines[topBoundaryIndex - 1] : 0;
+            const yEnd = this.horizontalLines[bottomBoundaryIndex] || this.canvas.height;
+            console.log(xStart,xEnd);
+            
+            this.ctx.save()
+            this.ctx.fillStyle = "rgba(19, 126, 67, 0.3)";
+
+            this.ctx.strokeStyle = "rgba(19, 126, 67, 1)";
+            this.ctx.lineWidth = 2; // Adjust for desired thickness
+            this.ctx.fillRect(cellX, cellY, xEnd - xStart, yEnd - yStart);
+            this.ctx.strokeRect(cellX, cellY, xEnd - xStart, yEnd - yStart);
+            this.ctx.restore()
+       this.pasting=false
+
+            
+    }
+
     calculateSum(initial, final) {
         const x1 = Math.min(initial[0], final[0]);
         const y1 = Math.min(initial[1], final[1]);
@@ -501,19 +628,30 @@ export class Grid {
         cell2.push(cellX2 / this.cellWidth, cellY2 / this.cellHeight)
         let ans = 0
         let times = 0
-        // let min= 1200120;
-        // let max = -21321321312
+        this.copiedCells = []
         for (let i = cell1[0]; i <= cell2[0]; i++) {
             for (let j = cell1[1]; j <= cell2[1]; j++) {
+                if (this.cellData[`${i},${j}`]) {
+                    this.copiedCells.push(`${j},${i}`)
+
+
+                }
+                else {
+                    this.copiedCells.push(`${j},${i}`)
+                }
+
+
+
                 if (!isNaN(parseFloat(this.cellData[`${i},${j}`]))) {
 
                     ans += parseFloat(this.cellData[`${i},${j}`])
                     times++;
-                    // max=Math.max(max,parseFloat(this.cellData[`${i},${j}`]))
-                    // min=Math.min(min,parseFloat(this.cellData[`${i},${j}`]))
+
                 }
             }
         }
+
+
 
 
         // If the click is on the headers (row 0 or column 0), do not edit
@@ -601,6 +739,7 @@ export class Grid {
             if (x < this.verticalLines[i]) {
                 cellX = i === 0 ? 0 : this.verticalLines[i - 1];
                 columnIndex = i;
+
                 break;
             }
         }
