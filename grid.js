@@ -8,6 +8,7 @@ window.onload = function () {
     canvas.height = window.innerHeight;
     const grid = new Grid('gridCanvas', cellWidth, cellHeight);
     grid.drawGrid();
+    
     document.getElementById('jsonUpload').addEventListener('change', async function () {
         const file = this.files[0];
         if (file) {
@@ -82,7 +83,7 @@ window.onload = function () {
             const cellX = Math.floor(x / grid.cellWidth) * grid.cellWidth;
             const cellY = Math.floor(y / grid.cellHeight) * grid.cellHeight;
             const arr = []
-            arr.push(cellX, cellY)
+            arr.push(x, y)
             grid.ismousedown = true;
 
             if (cellX == 0) {
@@ -173,12 +174,10 @@ window.onload = function () {
                 grid.drawGrid();
             }
         } else if (grid.ismousedown) {
-            const cellX = Math.floor(x / grid.cellWidth) * grid.cellWidth;
-            const cellY = Math.floor(y / grid.cellHeight) * grid.cellHeight;
 
-            if (cellX != 0 && cellY != 0) {
+            if (x != 0 && y != 0) {
                 const arr = [];
-                arr.push(cellX, cellY);
+                arr.push(x, y);
                 grid.finallcell = arr;
                 grid.highlightmiltiple(grid.initialcell, grid.finallcell);
             }
@@ -188,13 +187,11 @@ window.onload = function () {
 
     canvas.addEventListener('mouseup', function (event) {
         grid.calculateSum(grid.initialcell, grid.finallcell)
-       if(grid.finallcell.length)
-       {
-        grid.copyinitialcell = grid.initialcell
-        grid.copyfinalcell = grid.finallcell
-       }
-        console.warn(grid.copyinitialcell,grid.copyfinalcell);
-        
+        if (grid.finallcell.length) {
+            grid.copyinitialcell = grid.initialcell
+            grid.copyfinalcell = grid.finallcell
+        }
+
         grid.initialcell = [];
         grid.finallcell = [];
         grid.ismousedown = false;
@@ -225,11 +222,11 @@ window.onload = function () {
     });
 
     document.addEventListener('click', function (event) {
-  
-       
+
+
         const contextMenu = document.getElementById('contextMenu');
         contextMenu.style.display = 'none';
-       
+
     });
 
     document.getElementById('editOption').addEventListener('click', function () {
@@ -238,24 +235,23 @@ window.onload = function () {
         grid.editCell(grid.contextMenuX, grid.contextMenuY);
     });
     document.addEventListener('keydown', function (event) {
-    
-        
+
+
         if (event.ctrlKey && event.key === 'c') {
             event.preventDefault()
             grid.isCopying = true;
             grid.drawSelectionRectangle(); // Draw with dashed line
-            grid.pasting=true
+            grid.pasting = true
 
         }
         if (event.ctrlKey && event.key === 'v') {
-          
-                 if(grid.pasting)
-                 {
-                    grid.drawCopiedRectangle(grid.copyinitialcell, grid.copyfinalcell, grid.recentX, grid.recentY); // Draw with dashed line
-                 }
-                    
-               
-          
+
+            if (grid.pasting) {
+                grid.drawCopiedRectangle(grid.copyinitialcell, grid.copyfinalcell, grid.recentX, grid.recentY); // Draw with dashed line
+            }
+
+
+
 
         }
     });
@@ -271,7 +267,7 @@ export class Grid {
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
-        this.pasting=false
+        this.pasting = false
         this.cellData = {};
         this.verticalLines = [];
         this.horizontalLines = [];
@@ -284,8 +280,10 @@ export class Grid {
         this.ismousedown = false;
         this.ismouseup = false;
         this.ismousemove = false;
-        this.recentX=0
-        this.recentY=0
+        this.recentX = 0
+        this.recentY = 0
+        this.copiedlengthcells = 0;
+        this.copiedwidthcells = 0
         this.initLines();
     }
     addRows(count) {
@@ -325,45 +323,7 @@ export class Grid {
         this.drawGrid();
     }
 
-    drawSelectionRectangle() {
-        const initial = this.copyinitialcell;
-        const final = this.copyfinalcell;
 
-        if (!initial.length || !final.length) {
-            return;
-        }
-
-        const x1 = Math.min(initial[0], final[0]);
-        const y1 = Math.min(initial[1], final[1]);
-        const x2 = Math.max(initial[0], final[0]);
-        const y2 = Math.max(initial[1], final[1]);
-        const leftBoundaryIndex = this.verticalLines.findIndex(line => line > x1);
-        const rightBoundaryIndex = this.verticalLines.findIndex(line => line > x2);
-        const xStart = leftBoundaryIndex > 0 ? this.verticalLines[leftBoundaryIndex - 1] : 0;
-        const xEnd = this.verticalLines[rightBoundaryIndex] || this.canvas.width;
-
-        // Find the top and bottom boundaries
-        const topBoundaryIndex = this.horizontalLines.findIndex(line => line > y1);
-        const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line > y2);
-        const yStart = topBoundaryIndex > 0 ? this.horizontalLines[topBoundaryIndex - 1] : 0;
-        const yEnd = this.horizontalLines[bottomBoundaryIndex] || this.canvas.height;
-        this.ctx.strokeStyle = 'green';
-        this.ctx.lineWidth = 3;
-
-        // Set dashed line style if copying
-        if (this.isCopying) {
-            this.ctx.setLineDash([8, 5]); // Increased Dash pattern: 8px dash, 5px gap
-        } else {
-            ctx.setLineDash([]); // No dash, solid line
-        }
-
-        // Draw the rectangle
-        this.ctx.strokeRect(xStart, yStart, xEnd - xStart, yEnd - yStart);
-
-        // Reset the line dash to avoid affecting other drawings
-        this.ctx.setLineDash([]);
-
-    }
 
     drawGrid() {
         this.ctx.lineWidth = 0.2
@@ -494,8 +454,8 @@ export class Grid {
     }
 
     highlightCell(x, y) {
-        this.recentX=x
-        this.recentY=y
+        this.recentX = x
+        this.recentY = y
         let cellX = 0;
         let cellY = 0;
         let cellWidth = 0;
@@ -538,46 +498,99 @@ export class Grid {
         this.ctx.fillStyle = "white";
         this.ctx.strokeStyle = "black";
         this.ctx.lineWidth = 0.2;
-      
+
+    }
+    drawSelectionRectangle() {
+        const initial = this.copyinitialcell;
+        const final = this.copyfinalcell;
+
+        if (!initial.length || !final.length) {
+            return;
+        }
+
+        const x1 = Math.min(initial[0], final[0]);
+        const y1 = Math.min(initial[1], final[1]);
+        const x2 = Math.max(initial[0], final[0]);
+        const y2 = Math.max(initial[1], final[1]);
+
+        let xcells = 0, ycells = 0
+
+        for (let i = 0; i < this.verticalLines.length; i++) {
+            if (x1 < this.verticalLines[i]) {
+                xcells = i - 1;
+
+                break;
+            }
+        }
+        for (let i = 0; i < this.verticalLines.length; i++) {
+            if (x2 < this.verticalLines[i]) {
+                xcells = i - xcells;
+
+                break;
+            }
+        }
+        for (let i = 0; i < this.horizontalLines.length; i++) {
+            if (y1 < this.horizontalLines[i]) {
+                ycells = i - 1;
+
+                break;
+            }
+        }
+        for (let i = 0; i < this.horizontalLines.length; i++) {
+            if (y2 < this.horizontalLines[i]) {
+                ycells = i - ycells
+
+                break;
+            }
+        }
+
+        this.copiedlengthcells = xcells;
+        this.copiedwidthcells = ycells
+
     }
     drawCopiedRectangle(initial, final, x, y) {
-       
-        // this.drawGrid()
-        const cellX = Math.floor(x / this.cellWidth) * this.cellWidth;
-        const cellY = Math.floor(y / this.cellHeight) * this.cellHeight;
-       
 
-            const x1 = Math.min(initial[0], final[0]);
-            const y1 = Math.min(initial[1], final[1]);
-            const x2 = Math.max(initial[0], final[0]);
-            const y2 = Math.max(initial[1], final[1]);
+   
 
-            console.warn(cellX,cellY);
-            this.copiedCells = []
-            // Find the left and right boundaries
-            const leftBoundaryIndex = this.verticalLines.findIndex(line => line > x1);
-            const rightBoundaryIndex = this.verticalLines.findIndex(line => line > x2);
-            const xStart = leftBoundaryIndex > 0 ? this.verticalLines[leftBoundaryIndex - 1] : 0;
-            const xEnd = this.verticalLines[rightBoundaryIndex] || this.canvas.width;
+        let cellx = 0
+        let celly = 0
+        const x1 = Math.min(initial[0], final[0]);
+        const y1 = Math.min(initial[1], final[1]);
+        const x2 = Math.max(initial[0], final[0]);
+        const y2 = Math.max(initial[1], final[1]);
+   
+        let xend = 0
+        let yend = 0
+        for (let i = 0; i < this.verticalLines[i]; i++) {
+            if (x < this.verticalLines[i]) {
+                cellx = this.verticalLines[i - 1]
+                xend = i-1;
+                break;
+            }
+        }
+        for (let i = 0; i < this.horizontalLines[i]; i++) {
+            if (y < this.horizontalLines[i]) {
 
-            // Find the top and bottom boundaries
-            const topBoundaryIndex = this.horizontalLines.findIndex(line => line > y1);
-            const bottomBoundaryIndex = this.horizontalLines.findIndex(line => line > y2);
-            const yStart = topBoundaryIndex > 0 ? this.horizontalLines[topBoundaryIndex - 1] : 0;
-            const yEnd = this.horizontalLines[bottomBoundaryIndex] || this.canvas.height;
-            console.log(xStart,xEnd);
-            
-            this.ctx.save()
-            this.ctx.fillStyle = "rgba(19, 126, 67, 0.3)";
+                celly = this.horizontalLines[i - 1]
+                yend=i-1
+                break;
+            }
+        }
+        
 
-            this.ctx.strokeStyle = "rgba(19, 126, 67, 1)";
-            this.ctx.lineWidth = 2; // Adjust for desired thickness
-            this.ctx.fillRect(cellX, cellY, xEnd - xStart, yEnd - yStart);
-            this.ctx.strokeRect(cellX, cellY, xEnd - xStart, yEnd - yStart);
-            this.ctx.restore()
-       this.pasting=false
+        this.ctx.fillStyle = "rgba(19, 126, 67, 0.3)";
+        this.ctx.save();
 
-            
+        // Fill the main highlight area
+        this.ctx.fillRect(cellx, celly, this.verticalLines[xend+this.copiedlengthcells]-cellx,this.horizontalLines[yend+this.copiedwidthcells]-celly);
+
+        // Set stroke style for the border
+        this.ctx.strokeStyle = "rgba(19, 126, 67, 1)";
+        this.ctx.lineWidth = 2; 
+        this.ctx.strokeRect(cellx, celly, this.verticalLines[xend+this.copiedlengthcells]-cellx,this.horizontalLines[yend+this.copiedwidthcells]-celly)
+        this.ctx.restore()
+
+
     }
 
     calculateSum(initial, final) {
