@@ -45,6 +45,7 @@ window.onload = function pruthvi() {
     document.getElementById('mylink').onclick = function () {
         grid.clearCanavsClick()
     }
+
     canvas.addEventListener('mousedown', function (event) {
         grid.drawGrid();
         const rect = event.target.getBoundingClientRect();
@@ -240,13 +241,15 @@ window.onload = function pruthvi() {
         if (event.ctrlKey && event.key === 'c') {
             event.preventDefault()
             grid.isCopying = true;
+            console.warn(grid.initialcell, grid.finallcell);
+
             grid.drawSelectionRectangle(); // Draw with dashed line
             grid.pasting = true
 
         }
         if (event.ctrlKey && event.key === 'v') {
 
-            if (grid.pasting) {
+            if (grid.pasting && grid.isCopying) {
                 grid.drawCopiedRectangle(grid.recentX, grid.recentY); // Draw with dashed line
             }
 
@@ -286,16 +289,20 @@ export class Grid {
         this.copiedwidthcells = 0
         this.initLines();
         this.copiedCellData = []
+        this.horizontalLinesDrawn = this.horizontalLines.length
+        this.canvas.addEventListener('wheel', () => this.handleScroll(event));
     }
-    addRows(count) {
-        const lastRowIndex = this.horizontalLines.length - 1;
-        for (let i = 0; i < count; i++) {
-            const newY = this.horizontalLines[lastRowIndex] + this.cellHeight;
-            this.horizontalLines.push(newY);
-        }
-        this.drawGrid();
-    }
+    handleScroll(event) {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const windowHeight = window.innerHeight;
+        const canvasBottom = this.canvas.getBoundingClientRect().bottom + scrollTop;
 
+        if (scrollTop + windowHeight >= canvasBottom - 1) {
+          console.log('hgj');
+          
+        }
+    }
+  
     initLines() {
 
         // Initialize vertical lines
@@ -327,6 +334,8 @@ export class Grid {
 
 
     drawGrid() {
+        this.copyinitialcell = []
+        this.copyfinalcell = []
         this.ctx.lineWidth = 0.2
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -610,9 +619,7 @@ export class Grid {
 
     }
     drawCopiedRectangle(x, y) {
-        if (!this.isCopying) {
-            return
-        }
+
 
         let cellx = 0
         let celly = 0
